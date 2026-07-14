@@ -1,6 +1,6 @@
 ---
 title: "개발 환경 세팅기 2편 — 이 블로그 자체를 만든 이야기"
-date: 2026-07-14
+date: 2026-07-14 21:00:00 +0900
 categories: [개발일지, 세팅]
 tags: [github-pages, jekyll, chirpy, claude-code, 자동화]
 ---
