@@ -1,0 +1,106 @@
+---
+title: "개발 환경 세팅기 1편 — Docker부터 첫 커밋까지"
+categories: [개발일지, 세팅]
+tags: [docker, postgis, git, github, spring-boot, nextjs]
+---
+
+<!-- TODO: 발행 전에 이 글을 본인 문체로 다듬고, _posts/2026-07-14-dev-setup-1.md 로 옮긴 뒤 date를 채워서 push하세요. -->
+
+## 왜 이 프로젝트를 시작했나
+
+회사에서 운영 중인 해양지명 심사·등록 시스템(OWS)과 비슷하지만, **국내버전 + 깔끔한 디자인**으로 재구축하는 프로젝트를 시작했다. Java(전자정부프레임워크) 경력은 있지만 JSP+이클립스 조합이었고, 이번엔 완전히 다른 방식으로 만들어보기로 했다.
+
+기술 스택은 고민 끝에 **Spring Boot 3.x(백엔드) + Next.js 14(프론트) 분리 구조**로 확정했다. 이직을 준비하면서 모던 스택 실무 경력을 쌓는 게 목적이라, 익숙한 걸 반복하기보다 새로운 조합에 제대로 부딪혀보기로 했다.
+
+## 첫 삽질: JDK 버전
+
+가장 먼저 막힌 건 어이없게도 `java -version`이었다. 전자정부 시절 8버전만 알고 있었는데, 지금 표준은 21(LTS)이더라. 재미있게도 최신 LTS는 25인데도 21을 선택했다 — 채용공고 기준 시장 표준이 아직 17/21이라서다. 기술 선택도 결국 "가장 최신"이 아니라 "지금 맥락에 맞는 것"이라는 걸 다시 느꼈다.
+
+```powershell
+winget install EclipseAdoptium.Temurin.21.JDK --accept-source-agreements --accept-package-agreements
+```
+
+`winget`이라는 게 있는지도 이번에 처음 알았다. `npm install`처럼 프로그램 자체를 명령어로 설치해주는 Windows 내장 도구다.
+
+## 왜 로컬부터 Docker를 쓰나
+
+Docker는 "서버에 배포할 때나 쓰는 것"이라고 막연히 생각했는데, 이번에 로컬 개발부터 쓰는 이유를 이해했다:
+
+- PostgreSQL + PostGIS를 Windows에 직접 설치하는 건 생각보다 삽질이 많다. Docker면 이미지 이름 한 줄이면 끝.
+- 마이그레이션을 만들다 보면 DB를 통째로 초기화하고 싶을 때가 많은데, 컨테이너면 명령 두 줄로 가능하다.
+- **로컬 compose 파일이 곧 나중에 서버(EC2)에 올릴 그 파일**이다. 처음부터 배포 환경과 동일한 걸 쓰는 셈.
+
+즉 "이관이 편해서"라는 장점은 로컬에서부터 이 방식을 써야 생기는 거지, 서버에서만 쓰면 오히려 로컬-서버 환경이 두 벌이 되어 그 장점을 스스로 버리는 거였다.
+
+## 모노레포로 구조 잡기
+
+```
+kosbi-project/
+├── frontend/   ← Next.js
+├── backend/    ← Spring Boot
+├── infra/      ← docker-compose, nginx
+└── .gitignore
+```
+
+전자정부 시절엔 프론트(JSP)가 백엔드 저장소 안에 물리적으로 들어있었는데, 이번엔 몸이 아예 둘로 나뉘니 저장소 안에 폴더로 나누는 이 구조가 자연스러웠다. 혼자 개발 + 배포 단위가 하나(EC2 한 대)라는 조건이면 모노레포가 표준적인 선택이라고 한다.
+
+## docker-compose.yml에서 처음 겪은 YAML 에러
+
+```
+yaml: while parsing a block mapping at <unknown position>: line 13, column 3: did not find expected key
+```
+
+붙여넣기 한 번에 이런 에러가 났다. 원인은 파일 중간부터 들여쓰기 칸 수가 밀렸는데, 맨 아래 두 줄만 안 밀려서 앞뒤가 안 맞은 것. YAML은 "몇 칸이냐"가 중요한 게 아니라 "형제 항목끼리 칸 수가 똑같은가"만 본다는 걸 이번에 제대로 배웠다.
+
+```yaml
+services:
+  db:
+    image: postgis/postgis:16-3.4
+    container_name: kosbi-db
+    environment:
+      POSTGRES_DB: kosbi
+      POSTGRES_USER: kosbi
+      POSTGRES_PASSWORD: kosbi-local
+    ports:
+      - "5432:5432"
+    volumes:
+      - db-data:/var/lib/postgresql/data
+
+volumes:
+  db-data:
+```
+
+`docker compose up -d` 한 번으로 PostgreSQL + PostGIS가 떴고,
+
+```powershell
+docker exec -it kosbi-db psql -U kosbi -d kosbi -c "SELECT postgis_full_version();"
+```
+
+로 PostGIS 버전까지 확인했을 때 첫 성취감을 느꼈다.
+
+## GitHub 연결에서 또 한 번 삽질 — SSH vs HTTPS
+
+로컬에서 커밋까지는 순조로웠는데, `git push`에서 막혔다.
+
+```
+remote: Invalid username or token. Password authentication is not supported for Git operations.
+```
+
+GitHub이 2021년부터 비밀번호 로그인을 막았다는 걸 몰랐다. SSH로 시도해보니 이번엔
+
+```
+git@github.com: Permission denied (publickey).
+```
+
+알고 보니 이 컴퓨터엔 등록된 SSH 키가 없었다 (다른 프로젝트의 SSH 설정은 다른 환경에 있었던 것). 결국 **GitHub CLI(`gh`)**를 설치해서 브라우저 로그인 한 번으로 해결했다.
+
+```powershell
+gh auth login   # GitHub.com → HTTPS → Yes → Login with a web browser
+git push -u origin main
+```
+
+SSH와 HTTPS는 "어느 게 더 좋다"의 문제가 아니라 그냥 인증 방식이 다른 것뿐이고, `gh`는 그중 하나를 대신 관리해주는 도구라는 걸 이번에 정리했다.
+
+## 다음 편 예고
+
+여기까지 해서 로컬 DB 환경 + 모노레포 구조 + GitHub 연결까지 끝났다. 다음 편은 **Spring Boot 스켈레톤 만들기** — IntelliJ를 처음 열어보는 이야기다.
