@@ -1,6 +1,6 @@
 ---
 title: "개발 환경 세팅기 4편 — 비밀번호는 맞는데 왜 안 될까"
-date: 2026-07-15 13:00:00 +0900
+date: 2026-07-15 11:00:00 +0900
 categories: [개발일지, 트러블슈팅]
 tags: [postgresql, docker, networking, spring-boot]
 ---

@@ -1,6 +1,6 @@
 ---
 title: "개발 환경 세팅기 3편 — Spring Boot 첫걸음, 그리고 뭔가 잘못됐다"
-date: 2026-07-15 22:23:00 +0900
+date: 2026-07-15 10:00:00 +0900
 categories: [개발일지, 세팅]
 tags: [spring-boot, gradle, intellij, jpa, flyway]
 ---
