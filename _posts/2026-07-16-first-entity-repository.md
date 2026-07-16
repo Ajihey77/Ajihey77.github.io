@@ -119,7 +119,7 @@ public class AppUserController {
 
     @GetMapping
     public List<AppUser> listUsers() {
-        return appUserRepository.findAll();
+        return appUserRepository.findAll(); 
     }
 }
 ```
